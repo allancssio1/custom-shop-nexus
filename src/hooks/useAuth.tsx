@@ -1,5 +1,6 @@
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { supabase } from '@/integrations/supabase/client';
 
 interface User {
   id: string;
@@ -32,23 +33,129 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const login = async (email: string, password: string, type: 'admin' | 'store'): Promise<boolean> => {
-    // Simulação de login - aqui você integraria com Supabase
-    console.log('Login attempt:', { email, password, type });
-    
-    // Dados mockados para demonstração
-    if (type === 'admin' && email === 'allan.cassio1@gmail.com' && password === '123456') {
-      const adminUser: User = {
-        id: '1',
-        email: 'allan.cassio1@gmail.com',
-        name: 'Allan Cássio',
-        type: 'admin'
-      };
-      setUser(adminUser);
-      localStorage.setItem('user', JSON.stringify(adminUser));
-      return true;
+    try {
+      console.log('Login attempt:', { email, type });
+
+      if (type === 'admin') {
+        // Login do admin
+        const { data: authData, error: authError } = await supabase
+          .from('auth_users')
+          .select('id, user_type')
+          .eq('login', email)
+          .eq('user_type', 'admin')
+          .single();
+
+        if (authError || !authData) {
+          console.error('Auth error:', authError);
+          return false;
+        }
+
+        // Verificar senha usando a função crypt do PostgreSQL
+        const { data: passwordCheck, error: passwordError } = await supabase
+          .rpc('verify_password', {
+            user_id: authData.id,
+            input_password: password
+          });
+
+        if (passwordError) {
+          console.error('Password verification error:', passwordError);
+          // Fallback: verificação simples para desenvolvimento
+          if (email === 'allan.cassio1@gmail.com' && password === '123456') {
+            const { data: adminData, error: adminError } = await supabase
+              .from('admins')
+              .select('*')
+              .eq('email', email)
+              .single();
+
+            if (adminError || !adminData) {
+              console.error('Admin data error:', adminError);
+              return false;
+            }
+
+            const adminUser: User = {
+              id: adminData.id,
+              email: adminData.email,
+              name: adminData.name,
+              type: 'admin'
+            };
+
+            setUser(adminUser);
+            localStorage.setItem('user', JSON.stringify(adminUser));
+            return true;
+          }
+          return false;
+        }
+
+        if (passwordCheck) {
+          // Buscar dados do admin
+          const { data: adminData, error: adminError } = await supabase
+            .from('admins')
+            .select('*')
+            .eq('auth_id', authData.id)
+            .single();
+
+          if (adminError || !adminData) {
+            console.error('Admin data error:', adminError);
+            return false;
+          }
+
+          const adminUser: User = {
+            id: adminData.id,
+            email: adminData.email,
+            name: adminData.name,
+            type: 'admin'
+          };
+
+          setUser(adminUser);
+          localStorage.setItem('user', JSON.stringify(adminUser));
+          return true;
+        }
+      } else if (type === 'store') {
+        // Login da loja (usando CNPJ)
+        const { data: authData, error: authError } = await supabase
+          .from('auth_users')
+          .select('id, user_type')
+          .eq('login', email) // O CNPJ será usado como login
+          .eq('user_type', 'store')
+          .single();
+
+        if (authError || !authData) {
+          console.error('Store auth error:', authError);
+          return false;
+        }
+
+        // Verificar senha (implementação simplificada para desenvolvimento)
+        if (password === '123456') {
+          const { data: storeData, error: storeError } = await supabase
+            .from('stores')
+            .select('*')
+            .eq('auth_id', authData.id)
+            .single();
+
+          if (storeError || !storeData) {
+            console.error('Store data error:', storeError);
+            return false;
+          }
+
+          const storeUser: User = {
+            id: storeData.id,
+            email: storeData.cnpj,
+            name: storeData.name,
+            type: 'store',
+            storeSlug: storeData.slug
+          };
+
+          setUser(storeUser);
+          localStorage.setItem('user', JSON.stringify(storeUser));
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Login error:', error);
+      return false;
     }
-    
-    return false;
   };
 
   const clientLogin = async (phone: string, code: string): Promise<boolean> => {

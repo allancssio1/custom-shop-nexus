@@ -1,101 +1,144 @@
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
+import { useEffect, useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
-import { Store, CreditCard, Users, TrendingUp } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+
+interface Store {
+  id: string;
+  name: string;
+  cnpj: string;
+  slug: string;
+  responsible_name: string;
+  payment_enabled: boolean;
+  created_at: string;
+}
 
 const AdminDashboard = () => {
   const { user, logout } = useAuth();
+  const { toast } = useToast();
+  const [stores, setStores] = useState<Store[]>([]);
+  const [totalStores, setTotalStores] = useState(0);
+  const [paidStores, setPaidStores] = useState(0);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // Dados mockados para demonstração
-  const stats = {
-    totalStores: 15,
-    paidStores: 12,
-    totalOrders: 234,
-    totalRevenue: 'R$ 45.678,90'
+  useEffect(() => {
+    fetchDashboardData();
+  }, []);
+
+  const fetchDashboardData = async () => {
+    try {
+      setIsLoading(true);
+
+      // Buscar todas as lojas
+      const { data: storesData, error: storesError } = await supabase
+        .from('stores')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (storesError) {
+        console.error('Error fetching stores:', storesError);
+        toast({
+          title: "Erro ao carregar dados",
+          description: "Não foi possível carregar as informações das lojas.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      setStores(storesData || []);
+      setTotalStores(storesData?.length || 0);
+      setPaidStores(storesData?.filter(store => store.payment_enabled).length || 0);
+
+    } catch (error) {
+      console.error('Dashboard error:', error);
+      toast({
+        title: "Erro inesperado",
+        description: "Ocorreu um erro ao carregar o dashboard.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const recentStores = [
-    { id: 1, name: 'Pizzaria do João', cnpj: '12.345.678/0001-90', status: 'Ativa', createdAt: '2024-01-15' },
-    { id: 2, name: 'Lanchonete da Maria', cnpj: '98.765.432/0001-10', status: 'Pendente', createdAt: '2024-01-14' },
-    { id: 3, name: 'Restaurante Central', cnpj: '11.222.333/0001-44', status: 'Ativa', createdAt: '2024-01-13' },
-    { id: 4, name: 'Açaí da Praia', cnpj: '55.666.777/0001-88', status: 'Ativa', createdAt: '2024-01-12' },
-    { id: 5, name: 'Hamburgueria Top', cnpj: '99.888.777/0001-66', status: 'Pendente', createdAt: '2024-01-11' },
-  ];
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('pt-BR');
+  };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Carregando dashboard...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="container mx-auto px-4 py-4 flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">Painel Administrativo</h1>
-          <div className="flex items-center gap-4">
-            <span className="text-gray-600">Olá, {user?.name}</span>
-            <Button variant="outline" onClick={logout}>
+      <header className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center py-6">
+            <div>
+              <h1 className="text-3xl font-bold text-gray-900">Dashboard Administrativo</h1>
+              <p className="text-gray-600">Bem-vindo, {user?.name}</p>
+            </div>
+            <Button onClick={logout} variant="outline">
               Sair
             </Button>
           </div>
         </div>
       </header>
 
-      {/* Dashboard Content */}
-      <main className="container mx-auto px-4 py-8">
-        {/* Stats Cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Cards de estatísticas */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Lojas</CardTitle>
-              <Store className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">Total de Lojas</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalStores}</div>
-              <p className="text-xs text-muted-foreground">
-                +2 desde o mês passado
-              </p>
+              <div className="text-2xl font-bold text-blue-600">{totalStores}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Lojas Pagas</CardTitle>
-              <CreditCard className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">Lojas com Pagamento</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.paidStores}</div>
-              <p className="text-xs text-muted-foreground">
-                {Math.round((stats.paidStores / stats.totalStores) * 100)}% do total
-              </p>
+              <div className="text-2xl font-bold text-green-600">{paidStores}</div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Pedidos</CardTitle>
-              <Users className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">Taxa de Conversão</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalOrders}</div>
-              <p className="text-xs text-muted-foreground">
-                +18% desde o mês passado
-              </p>
+              <div className="text-2xl font-bold text-purple-600">
+                {totalStores > 0 ? Math.round((paidStores / totalStores) * 100) : 0}%
+              </div>
             </CardContent>
           </Card>
 
           <Card>
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Receita Total</CardTitle>
-              <TrendingUp className="h-4 w-4 text-muted-foreground" />
+            <CardHeader>
+              <CardTitle className="text-sm font-medium text-gray-600">Lojas Pendentes</CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalRevenue}</div>
-              <p className="text-xs text-muted-foreground">
-                +25% desde o mês passado
-              </p>
+              <div className="text-2xl font-bold text-orange-600">{totalStores - paidStores}</div>
             </CardContent>
           </Card>
         </div>
 
-        {/* Recent Stores Table */}
+        {/* Tabela das últimas lojas cadastradas */}
         <Card>
           <CardHeader>
             <CardTitle>Últimas Lojas Cadastradas</CardTitle>
@@ -104,36 +147,48 @@ const AdminDashboard = () => {
             </CardDescription>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">Nome da Loja</th>
-                    <th className="text-left py-2">CNPJ</th>
-                    <th className="text-left py-2">Status</th>
-                    <th className="text-left py-2">Data de Cadastro</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {recentStores.map((store) => (
-                    <tr key={store.id} className="border-b">
-                      <td className="py-2">{store.name}</td>
-                      <td className="py-2">{store.cnpj}</td>
-                      <td className="py-2">
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          store.status === 'Ativa' 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-yellow-100 text-yellow-800'
-                        }`}>
-                          {store.status}
-                        </span>
-                      </td>
-                      <td className="py-2">{new Date(store.createdAt).toLocaleDateString('pt-BR')}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nome da Loja</TableHead>
+                  <TableHead>CNPJ</TableHead>
+                  <TableHead>Responsável</TableHead>
+                  <TableHead>Slug</TableHead>
+                  <TableHead>Status Pagamento</TableHead>
+                  <TableHead>Data de Cadastro</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stores.slice(0, 10).map((store) => (
+                  <TableRow key={store.id}>
+                    <TableCell className="font-medium">{store.name}</TableCell>
+                    <TableCell>{store.cnpj}</TableCell>
+                    <TableCell>{store.responsible_name}</TableCell>
+                    <TableCell>
+                      <code className="bg-gray-100 px-2 py-1 rounded text-sm">
+                        {store.slug}
+                      </code>
+                    </TableCell>
+                    <TableCell>
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${
+                        store.payment_enabled 
+                          ? 'bg-green-100 text-green-800' 
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {store.payment_enabled ? 'Pago' : 'Pendente'}
+                      </span>
+                    </TableCell>
+                    <TableCell>{formatDate(store.created_at)}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+            
+            {stores.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                Nenhuma loja cadastrada ainda.
+              </div>
+            )}
           </CardContent>
         </Card>
       </main>

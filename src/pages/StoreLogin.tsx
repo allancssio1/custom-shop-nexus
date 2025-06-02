@@ -11,6 +11,7 @@ import { useToast } from '@/hooks/use-toast';
 const StoreLogin = () => {
   const [cnpj, setCnpj] = useState('');
   const [password, setPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const { slug } = useParams();
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -18,30 +19,33 @@ const StoreLogin = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
-    // Simular login da loja
-    console.log('Store login attempt:', { cnpj, password, slug });
-    
-    // Para demonstração, aceitar qualquer CNPJ com senha "123456"
-    if (password === '123456') {
-      // Simular usuário da loja
-      const storeUser = {
-        id: '3',
-        email: cnpj,
-        name: 'Loja Teste',
-        type: 'store' as const,
-        storeSlug: slug
-      };
+    try {
+      const success = await login(cnpj, password, 'store');
       
-      // Simular login bem-sucedido
-      localStorage.setItem('user', JSON.stringify(storeUser));
-      navigate(`/store/${slug}/dashboard`);
-    } else {
+      if (success) {
+        navigate(`/store/${slug}/dashboard`);
+        toast({
+          title: "Login realizado com sucesso!",
+          description: "Bem-vindo ao painel da sua loja.",
+        });
+      } else {
+        toast({
+          title: "Erro no login",
+          description: "CNPJ ou senha incorretos",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Login error:', error);
       toast({
         title: "Erro no login",
-        description: "CNPJ ou senha incorretos",
+        description: "Ocorreu um erro inesperado. Tente novamente.",
         variant: "destructive"
       });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -63,6 +67,7 @@ const StoreLogin = () => {
                 value={cnpj}
                 onChange={(e) => setCnpj(e.target.value)}
                 placeholder="00.000.000/0001-00"
+                disabled={isLoading}
                 required
               />
             </div>
@@ -73,11 +78,12 @@ const StoreLogin = () => {
                 type="password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                disabled={isLoading}
                 required
               />
             </div>
-            <Button type="submit" className="w-full">
-              Entrar
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? 'Entrando...' : 'Entrar'}
             </Button>
           </form>
         </CardContent>
