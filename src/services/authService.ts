@@ -46,9 +46,12 @@ export const loginAdmin = async (email: string, password: string): Promise<User 
 
 export const loginStore = async (cnpj: string, password: string): Promise<User | null> => {
   try {
+    console.log('Store login attempt for CNPJ:', cnpj);
+    
+    // Get auth user with password hash
     const { data: authData, error: authError } = await supabase
       .from('auth_users')
-      .select('id, user_type')
+      .select('id, user_type, password_hash')
       .eq('login', cnpj)
       .eq('user_type', 'store')
       .single();
@@ -58,29 +61,43 @@ export const loginStore = async (cnpj: string, password: string): Promise<User |
       return null;
     }
 
-    // Verificar senha (implementação simplificada para desenvolvimento)
-    if (password === '123456') {
-      const { data: storeData, error: storeError } = await supabase
-        .from('stores')
-        .select('*')
-        .eq('auth_id', authData.id)
-        .single();
+    // Verify password using the database function
+    const { data: passwordValid, error: passwordError } = await supabase
+      .rpc('verify_password', { 
+        password: password, 
+        hash: authData.password_hash 
+      });
 
-      if (storeError || !storeData) {
-        console.error('Store data error:', storeError);
-        return null;
-      }
-
-      return {
-        id: storeData.id,
-        email: storeData.cnpj,
-        name: storeData.name,
-        type: 'store',
-        storeSlug: storeData.slug
-      };
+    if (passwordError) {
+      console.error('Password verification error:', passwordError);
+      return null;
     }
 
-    return null;
+    if (!passwordValid) {
+      console.log('Invalid password for CNPJ:', cnpj);
+      return null;
+    }
+
+    // Get store data
+    const { data: storeData, error: storeError } = await supabase
+      .from('stores')
+      .select('*')
+      .eq('auth_id', authData.id)
+      .single();
+
+    if (storeError || !storeData) {
+      console.error('Store data error:', storeError);
+      return null;
+    }
+
+    console.log('Store login successful:', storeData.name);
+    return {
+      id: storeData.id,
+      email: storeData.cnpj,
+      name: storeData.name,
+      type: 'store',
+      storeSlug: storeData.slug
+    };
   } catch (error) {
     console.error('Login store error:', error);
     return null;

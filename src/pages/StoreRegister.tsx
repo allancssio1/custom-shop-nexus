@@ -5,11 +5,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { createSlugFromText } from '@/utils/slug';
 import { useToast } from '@/hooks/use-toast';
+import { registerStore, StoreRegistrationData } from '@/services/storeRegistrationService';
 
 const StoreRegister = () => {
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<StoreRegistrationData>({
     cnpj: '',
     nome: '',
     subtitulo: '',
@@ -19,25 +19,35 @@ const StoreRegister = () => {
     senha: ''
   });
   
+  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
     
-    // Gerar slug do nome da loja
-    const slug = createSlugFromText(formData.nome);
-    
-    console.log('Registering store:', { ...formData, slug });
-    
-    // Simular registro bem-sucedido
-    toast({
-      title: "Loja cadastrada com sucesso!",
-      description: `Sua loja foi criada com o endereço: /store/${slug}`
-    });
-    
-    // Redirecionar para login da loja
-    navigate(`/store/${slug}/login`);
+    try {
+      const { store, slug } = await registerStore(formData);
+      
+      toast({
+        title: "Loja cadastrada com sucesso!",
+        description: `Sua loja foi criada com o endereço: /store/${slug}. Você já pode fazer login.`
+      });
+      
+      // Redirect to store login page
+      navigate(`/store/${slug}/login`);
+      
+    } catch (error) {
+      console.error('Registration error:', error);
+      toast({
+        title: "Erro no cadastro",
+        description: error instanceof Error ? error.message : "Ocorreu um erro inesperado. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -67,6 +77,7 @@ const StoreRegister = () => {
                   placeholder="00.000.000/0001-00"
                   value={formData.cnpj}
                   onChange={handleChange}
+                  disabled={isLoading}
                   required
                 />
               </div>
@@ -78,6 +89,7 @@ const StoreRegister = () => {
                   placeholder="Nome da sua loja"
                   value={formData.nome}
                   onChange={handleChange}
+                  disabled={isLoading}
                   required
                 />
               </div>
@@ -91,6 +103,7 @@ const StoreRegister = () => {
                 placeholder="Descrição breve da sua loja"
                 value={formData.subtitulo}
                 onChange={handleChange}
+                disabled={isLoading}
                 required
               />
             </div>
@@ -103,6 +116,7 @@ const StoreRegister = () => {
                 type="color"
                 value={formData.corPrincipal}
                 onChange={handleChange}
+                disabled={isLoading}
                 className="h-12"
               />
             </div>
@@ -115,6 +129,7 @@ const StoreRegister = () => {
                 placeholder="Endereço completo da loja"
                 value={formData.endereco}
                 onChange={handleChange}
+                disabled={isLoading}
                 required
               />
             </div>
@@ -127,6 +142,7 @@ const StoreRegister = () => {
                 placeholder="Nome do responsável pela loja"
                 value={formData.nomeResponsavel}
                 onChange={handleChange}
+                disabled={isLoading}
                 required
               />
             </div>
@@ -140,12 +156,13 @@ const StoreRegister = () => {
                 placeholder="Senha para acessar o painel da loja"
                 value={formData.senha}
                 onChange={handleChange}
+                disabled={isLoading}
                 required
               />
             </div>
 
-            <Button type="submit" className="w-full" size="lg">
-              Cadastrar Loja
+            <Button type="submit" className="w-full" size="lg" disabled={isLoading}>
+              {isLoading ? 'Cadastrando...' : 'Cadastrar Loja'}
             </Button>
           </form>
         </CardContent>
