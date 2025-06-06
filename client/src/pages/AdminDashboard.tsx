@@ -4,7 +4,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 interface Store {
@@ -12,9 +11,9 @@ interface Store {
   name: string;
   cnpj: string;
   slug: string;
-  responsible_name: string;
-  payment_enabled: boolean;
-  created_at: string;
+  responsibleName: string;
+  paymentEnabled: boolean;
+  createdAt: string;
 }
 
 const AdminDashboard = () => {
@@ -33,31 +32,24 @@ const AdminDashboard = () => {
     try {
       setIsLoading(true);
 
-      // Buscar todas as lojas
-      const { data: storesData, error: storesError } = await supabase
-        .from('stores')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (storesError) {
-        console.error('Error fetching stores:', storesError);
-        toast({
-          title: "Erro ao carregar dados",
-          description: "Não foi possível carregar as informações das lojas.",
-          variant: "destructive"
-        });
-        return;
+      // Fetch all stores from the API
+      const response = await fetch('/api/stores');
+      
+      if (!response.ok) {
+        throw new Error('Failed to fetch stores');
       }
+
+      const storesData = await response.json();
 
       setStores(storesData || []);
       setTotalStores(storesData?.length || 0);
-      setPaidStores(storesData?.filter(store => store.payment_enabled).length || 0);
+      setPaidStores(storesData?.filter(store => store.paymentEnabled).length || 0);
 
     } catch (error) {
       console.error('Dashboard error:', error);
       toast({
-        title: "Erro inesperado",
-        description: "Ocorreu um erro ao carregar o dashboard.",
+        title: "Erro ao carregar dados",
+        description: "Não foi possível carregar as informações das lojas.",
         variant: "destructive"
       });
     } finally {
