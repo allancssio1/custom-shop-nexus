@@ -42,12 +42,6 @@ serve(async (req) => {
     if (!user) throw new Error("User not authenticated");
     logStep("User authenticated", { userId: user.id });
 
-    const { planType } = await req.json();
-    if (!planType || !['basico', 'intermediario', 'avancado'].includes(planType)) {
-      throw new Error("Invalid plan type");
-    }
-    logStep("Plan type validated", { planType });
-
     // Get store data
     const { data: authUser } = await supabaseClient
       .from('auth_users')
@@ -64,7 +58,7 @@ serve(async (req) => {
       .single();
 
     if (!store) throw new Error("Store not found");
-    logStep("Store found", { storeId: store.id });
+    logStep("Store found", { storeId: store.id, clientCount: store.client_count });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
 
@@ -91,15 +85,19 @@ serve(async (req) => {
       logStep("New customer created", { customerId });
     }
 
-    // Define plan details
-    const planDetails = {
-      basico: { price: 3000, name: "Plano Básico", limit: 99 },
-      intermediario: { price: 5500, name: "Plano Intermediário", limit: 199 },
-      avancado: { price: 8000, name: "Plano Avançado", limit: 999999 }
-    };
+    // Calculate pricing based on client count
+    const clientCount = store.client_count || 0;
+    const basePrice = 3000; // R$ 30.00 in cents
+    const baseLimit = 199;
+    const extraClientPrice = 10; // R$ 0.10 in cents
+    
+    let totalPrice = basePrice;
+    if (clientCount > baseLimit) {
+      const extraClients = clientCount - baseLimit;
+      totalPrice += extraClients * extraClientPrice;
+    }
 
-    const selectedPlan = planDetails[planType as keyof typeof planDetails];
-    logStep("Plan details", selectedPlan);
+    logStep("Pricing calculated", { clientCount, basePrice, totalPrice });
 
     const session = await stripe.checkout.sessions.create({
       customer: customerId,
@@ -108,10 +106,10 @@ serve(async (req) => {
           price_data: {
             currency: "brl",
             product_data: {
-              name: selectedPlan.name,
-              description: `Até ${selectedPlan.limit} clientes cadastrados`
+              name: "Plano Único - Sistema de Gestão",
+              description: `R$ 30,00 base + R$ 0,10 por cliente extra (atual: ${clientCount} clientes)`
             },
-            unit_amount: selectedPlan.price,
+            unit_amount: totalPrice,
             recurring: { interval: "month" },
           },
           quantity: 1,
@@ -122,9 +120,9 @@ serve(async (req) => {
       cancel_url: `${req.headers.get("origin")}/store/${store.slug}/subscription?canceled=true`,
       metadata: {
         store_id: store.id,
-        plan_type: planType,
-        client_limit: selectedPlan.limit.toString(),
-        monthly_price: (selectedPlan.price / 100).toString()
+        client_count: clientCount.toString(),
+        base_price: "30.00",
+        total_price: (totalPrice / 100).toString()
       }
     });
 

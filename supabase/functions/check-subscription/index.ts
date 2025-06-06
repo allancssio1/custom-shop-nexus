@@ -13,6 +13,29 @@ const logStep = (step: string, details?: any) => {
   console.log(`[CHECK-SUBSCRIPTION] ${step}${detailsStr}`);
 };
 
+const calculateSubscriptionPrice = (clientCount: number) => {
+  const basePrice = 30.00;
+  const baseLimit = 199;
+  const extraClientPrice = 0.10;
+  
+  if (clientCount <= baseLimit) {
+    return {
+      basePrice,
+      extraClientsCharge: 0,
+      totalMonthlyPrice: basePrice
+    };
+  }
+  
+  const extraClients = clientCount - baseLimit;
+  const extraClientsCharge = extraClients * extraClientPrice;
+  
+  return {
+    basePrice,
+    extraClientsCharge,
+    totalMonthlyPrice: basePrice + extraClientsCharge
+  };
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -57,7 +80,7 @@ serve(async (req) => {
       .single();
 
     if (!store) throw new Error("Store not found");
-    logStep("Store found", { storeId: store.id });
+    logStep("Store found", { storeId: store.id, clientCount: store.client_count });
 
     const stripe = new Stripe(stripeKey, { apiVersion: "2023-10-16" });
     
@@ -67,14 +90,19 @@ serve(async (req) => {
       limit: 1 
     });
     
+    const clientCount = store.client_count || 0;
+    const pricing = calculateSubscriptionPrice(clientCount);
+    
     if (customers.data.length === 0) {
       logStep("No Stripe customer found, no subscription");
       return new Response(JSON.stringify({ 
         hasSubscription: false, 
-        clientCount: store.client_count || 0,
-        clientLimit: 5, // Trial limit
         planType: 'trial',
-        canAddClients: (store.client_count || 0) < 5
+        clientCount,
+        basePrice: pricing.basePrice,
+        extraClientsCharge: pricing.extraClientsCharge,
+        totalMonthlyPrice: pricing.totalMonthlyPrice,
+        canAddClients: clientCount < 5
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -95,10 +123,12 @@ serve(async (req) => {
       logStep("No active subscription found");
       return new Response(JSON.stringify({ 
         hasSubscription: false,
-        clientCount: store.client_count || 0,
-        clientLimit: 5,
         planType: 'trial',
-        canAddClients: (store.client_count || 0) < 5
+        clientCount,
+        basePrice: pricing.basePrice,
+        extraClientsCharge: pricing.extraClientsCharge,
+        totalMonthlyPrice: pricing.totalMonthlyPrice,
+        canAddClients: clientCount < 5
       }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
@@ -109,27 +139,6 @@ serve(async (req) => {
     const subscriptionEnd = new Date(subscription.current_period_end * 1000).toISOString();
     logStep("Active subscription found", { subscriptionId: subscription.id });
 
-    // Determine plan type from price
-    const priceId = subscription.items.data[0].price.id;
-    const price = await stripe.prices.retrieve(priceId);
-    const amount = price.unit_amount || 0;
-    
-    let planType = 'basico';
-    let clientLimit = 99;
-    
-    if (amount <= 3000) {
-      planType = 'basico';
-      clientLimit = 99;
-    } else if (amount <= 5500) {
-      planType = 'intermediario';
-      clientLimit = 199;
-    } else {
-      planType = 'avancado';
-      clientLimit = 999999;
-    }
-
-    logStep("Plan determined", { planType, clientLimit, amount });
-
     // Update or create subscription record
     const { error: upsertError } = await supabaseClient
       .from('subscriptions')
@@ -137,12 +146,12 @@ serve(async (req) => {
         store_id: store.id,
         stripe_customer_id: customerId,
         stripe_subscription_id: subscription.id,
-        plan_type: planType,
+        plan_type: 'unico',
         status: 'active',
         current_period_start: new Date(subscription.current_period_start * 1000).toISOString(),
         current_period_end: subscriptionEnd,
-        client_limit: clientLimit,
-        monthly_price: amount / 100,
+        client_limit: 999999, // No limit for paid plan
+        monthly_price: pricing.totalMonthlyPrice,
         updated_at: new Date().toISOString()
       }, {
         onConflict: 'store_id'
@@ -154,17 +163,15 @@ serve(async (req) => {
       logStep("Subscription record updated");
     }
 
-    const clientCount = store.client_count || 0;
-    const canAddClients = clientCount < clientLimit;
-
     return new Response(JSON.stringify({
       hasSubscription: true,
-      planType,
+      planType: 'unico',
       clientCount,
-      clientLimit,
-      canAddClients,
-      subscriptionEnd,
-      monthlyPrice: amount / 100
+      basePrice: pricing.basePrice,
+      extraClientsCharge: pricing.extraClientsCharge,
+      totalMonthlyPrice: pricing.totalMonthlyPrice,
+      canAddClients: true,
+      subscriptionEnd
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

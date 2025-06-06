@@ -5,13 +5,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { Package, CreditCard, Settings } from 'lucide-react';
+import { CreditCard, Settings } from 'lucide-react';
 import SubscriptionCard from '@/components/subscription/SubscriptionCard';
 import SubscriptionUsage from '@/components/subscription/SubscriptionUsage';
 import { 
   checkSubscription, 
   createSubscriptionCheckout, 
   openCustomerPortal,
+  calculateSubscriptionPrice,
   type SubscriptionStatus 
 } from '@/services/subscriptionService';
 
@@ -22,49 +23,7 @@ const StoreSubscription = () => {
   
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
   const [loading, setLoading] = useState(true);
-  const [checkoutLoading, setCheckoutLoading] = useState<string | null>(null);
-
-  const plans = [
-    {
-      planType: 'basico',
-      title: 'Plano Básico',
-      price: 30,
-      clientLimit: 99,
-      features: [
-        'Até 99 clientes cadastrados',
-        'Gestão completa de pedidos',
-        'Dashboard de vendas',
-        'Suporte por email'
-      ]
-    },
-    {
-      planType: 'intermediario',
-      title: 'Plano Intermediário',
-      price: 55,
-      clientLimit: 199,
-      features: [
-        'Até 199 clientes cadastrados',
-        'Gestão completa de pedidos',
-        'Dashboard de vendas',
-        'Relatórios avançados',
-        'Suporte prioritário'
-      ]
-    },
-    {
-      planType: 'avancado',
-      title: 'Plano Avançado',
-      price: 80,
-      clientLimit: 999999,
-      features: [
-        'Clientes ilimitados',
-        'Gestão completa de pedidos',
-        'Dashboard de vendas',
-        'Relatórios avançados',
-        'API para integrações',
-        'Suporte 24/7'
-      ]
-    }
-  ];
+  const [checkoutLoading, setCheckoutLoading] = useState(false);
 
   useEffect(() => {
     loadSubscriptionStatus();
@@ -87,10 +46,10 @@ const StoreSubscription = () => {
     }
   };
 
-  const handleSubscribe = async (planType: string) => {
+  const handleSubscribe = async () => {
     try {
-      setCheckoutLoading(planType);
-      const { url } = await createSubscriptionCheckout(planType);
+      setCheckoutLoading(true);
+      const { url } = await createSubscriptionCheckout();
       window.open(url, '_blank');
     } catch (error) {
       console.error('Error creating checkout:', error);
@@ -100,7 +59,7 @@ const StoreSubscription = () => {
         variant: "destructive"
       });
     } finally {
-      setCheckoutLoading(null);
+      setCheckoutLoading(false);
     }
   };
 
@@ -128,6 +87,8 @@ const StoreSubscription = () => {
       </div>
     );
   }
+
+  const pricing = subscriptionStatus ? calculateSubscriptionPrice(subscriptionStatus.clientCount) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -171,11 +132,13 @@ const StoreSubscription = () => {
       <main className="container mx-auto px-4 py-8">
         <div className="space-y-8">
           {/* Current Status */}
-          {subscriptionStatus && (
+          {subscriptionStatus && pricing && (
             <div className="grid md:grid-cols-2 gap-6">
               <SubscriptionUsage 
                 clientCount={subscriptionStatus.clientCount}
-                clientLimit={subscriptionStatus.clientLimit}
+                basePrice={pricing.basePrice}
+                extraClientsCharge={pricing.extraClientsCharge}
+                totalMonthlyPrice={pricing.totalMonthlyPrice}
                 planType={subscriptionStatus.planType}
               />
               
@@ -187,7 +150,7 @@ const StoreSubscription = () => {
                       <CardTitle>Gerenciar Assinatura</CardTitle>
                     </div>
                     <CardDescription>
-                      Altere seu plano, método de pagamento ou cancele sua assinatura
+                      Altere seu método de pagamento ou cancele sua assinatura
                     </CardDescription>
                   </CardHeader>
                   <CardContent>
@@ -201,44 +164,45 @@ const StoreSubscription = () => {
             </div>
           )}
 
-          {/* Available Plans */}
+          {/* Subscription Plan */}
           <div>
-            <h2 className="text-2xl font-bold mb-6">Planos Disponíveis</h2>
-            <div className="grid md:grid-cols-3 gap-6">
-              {plans.map((plan) => (
+            <h2 className="text-2xl font-bold mb-6">Plano de Assinatura</h2>
+            <div className="max-w-md mx-auto">
+              {subscriptionStatus && pricing && (
                 <SubscriptionCard
-                  key={plan.planType}
-                  planType={plan.planType}
-                  title={plan.title}
-                  price={plan.price}
-                  clientLimit={plan.clientLimit}
-                  features={plan.features}
-                  isCurrentPlan={subscriptionStatus?.planType === plan.planType}
-                  isRecommended={
-                    subscriptionStatus && 
-                    subscriptionStatus.clientCount > 70 && 
-                    plan.planType === 'intermediario' && 
-                    subscriptionStatus.planType === 'basico'
-                  }
-                  onSelect={() => handleSubscribe(plan.planType)}
-                  loading={checkoutLoading === plan.planType}
+                  title="Plano Único"
+                  basePrice={pricing.basePrice}
+                  clientCount={subscriptionStatus.clientCount}
+                  totalPrice={pricing.totalMonthlyPrice}
+                  extraClientsCharge={pricing.extraClientsCharge}
+                  isCurrentPlan={subscriptionStatus.hasSubscription}
+                  onSelect={handleSubscribe}
+                  loading={checkoutLoading}
                 />
-              ))}
+              )}
             </div>
           </div>
 
           {/* Help Section */}
           <Card>
             <CardHeader>
-              <CardTitle>Precisa de Ajuda?</CardTitle>
+              <CardTitle>Como Funciona</CardTitle>
               <CardDescription>
-                Entre em contato conosco se tiver dúvidas sobre os planos
+                Modelo de cobrança transparente e flexível
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <p className="text-sm text-muted-foreground">
-                Email: suporte@exemplo.com | WhatsApp: (11) 99999-9999
-              </p>
+              <div className="space-y-3 text-sm text-muted-foreground">
+                <p>• <strong>Valor base:</strong> R$ 30,00/mês para até 199 clientes cadastrados</p>
+                <p>• <strong>Clientes extras:</strong> R$ 0,10/mês para cada cliente acima de 200</p>
+                <p>• <strong>Sem surpresas:</strong> Você paga apenas pelos clientes que cadastra</p>
+                <p>• <strong>Cancelamento:</strong> Pode cancelar a qualquer momento</p>
+              </div>
+              <div className="mt-4 p-3 bg-blue-50 rounded-md">
+                <p className="text-sm">
+                  <strong>Exemplo:</strong> 250 clientes = R$ 30,00 (base) + R$ 5,00 (50 extras × R$ 0,10) = R$ 35,00/mês
+                </p>
+              </div>
             </CardContent>
           </Card>
         </div>

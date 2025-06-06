@@ -5,7 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
 import { Package, Users, Clock, CheckCircle, CreditCard, AlertTriangle } from 'lucide-react';
-import { checkSubscription, type SubscriptionStatus } from '@/services/subscriptionService';
+import { checkSubscription, calculateSubscriptionPrice, type SubscriptionStatus } from '@/services/subscriptionService';
 import { useToast } from '@/hooks/use-toast';
 
 const StoreDashboard = () => {
@@ -34,6 +34,8 @@ const StoreDashboard = () => {
       console.error('Error loading subscription:', error);
     }
   };
+
+  const pricing = subscriptionStatus ? calculateSubscriptionPrice(subscriptionStatus.clientCount) : null;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -83,12 +85,12 @@ const StoreDashboard = () => {
                 <div className="flex items-center gap-3">
                   <AlertTriangle className="h-5 w-5 text-red-500" />
                   <div>
-                    <p className="font-medium text-red-800">Limite de clientes atingido</p>
+                    <p className="font-medium text-red-800">Período de teste encerrado</p>
                     <p className="text-sm text-red-600">
-                      Você atingiu o limite de {subscriptionStatus.clientLimit} clientes. 
+                      Você atingiu o limite de 5 clientes do período de teste.
                       <a href={`/store/${slug}/subscription`} className="underline ml-1">
-                        Faça upgrade do seu plano
-                      </a> para continuar cadastrando.
+                        Assine o plano único
+                      </a> para continuar cadastrando clientes.
                     </p>
                   </div>
                 </div>
@@ -122,11 +124,7 @@ const StoreDashboard = () => {
                 {subscriptionStatus ? subscriptionStatus.clientCount : stats.totalClients}
               </div>
               <p className="text-xs text-muted-foreground">
-                {subscriptionStatus && (
-                  <>
-                    Limite: {subscriptionStatus.clientLimit === 999999 ? 'Ilimitado' : subscriptionStatus.clientLimit}
-                  </>
-                )}
+                {subscriptionStatus?.planType === 'trial' ? 'Máx: 5 (teste)' : 'Sem limite'}
               </p>
             </CardContent>
           </Card>
@@ -187,7 +185,7 @@ const StoreDashboard = () => {
             </CardContent>
           </Card>
 
-          {subscriptionStatus && (
+          {subscriptionStatus && pricing && (
             <Card>
               <CardHeader>
                 <div className="flex items-center gap-2">
@@ -195,33 +193,46 @@ const StoreDashboard = () => {
                   <CardTitle>Sua Assinatura</CardTitle>
                 </div>
                 <CardDescription>
-                  Informações do seu plano atual
+                  Modelo de cobrança flexível
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
                 <div className="space-y-2">
                   <div className="flex justify-between">
                     <span>Plano:</span>
-                    <span className="font-semibold capitalize">
-                      {subscriptionStatus.planType === 'trial' ? 'Período de Teste' : subscriptionStatus.planType}
+                    <span className="font-semibold">
+                      {subscriptionStatus.planType === 'trial' ? 'Período de Teste' : 'Plano Único'}
                     </span>
                   </div>
                   <div className="flex justify-between">
                     <span>Clientes:</span>
                     <span className="font-semibold">
-                      {subscriptionStatus.clientCount}/{subscriptionStatus.clientLimit === 999999 ? '∞' : subscriptionStatus.clientLimit}
+                      {subscriptionStatus.clientCount}
+                      {subscriptionStatus.planType === 'trial' ? '/5' : ''}
                     </span>
                   </div>
-                  {subscriptionStatus.monthlyPrice && (
-                    <div className="flex justify-between">
-                      <span>Mensalidade:</span>
-                      <span className="font-semibold">R$ {subscriptionStatus.monthlyPrice}</span>
-                    </div>
+                  {subscriptionStatus.hasSubscription && (
+                    <>
+                      <div className="flex justify-between">
+                        <span>Valor base:</span>
+                        <span className="font-semibold">R$ {pricing.basePrice.toFixed(2)}</span>
+                      </div>
+                      {pricing.extraClientsCharge > 0 && (
+                        <div className="flex justify-between">
+                          <span>Clientes extras:</span>
+                          <span className="font-semibold">R$ {pricing.extraClientsCharge.toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between border-t pt-2">
+                        <span className="font-medium">Total mensal:</span>
+                        <span className="font-bold text-green-600">R$ {pricing.totalMonthlyPrice.toFixed(2)}</span>
+                      </div>
+                    </>
                   )}
                 </div>
                 <Button asChild className="w-full">
                   <a href={`/store/${slug}/subscription`}>
-                    Gerenciar Assinatura
+                    {subscriptionStatus.hasSubscription ? 'Gerenciar Assinatura' : 'Assinar Plano'}
                   </a>
                 </Button>
               </CardContent>

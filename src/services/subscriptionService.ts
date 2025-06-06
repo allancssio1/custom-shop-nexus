@@ -5,10 +5,11 @@ export interface SubscriptionStatus {
   hasSubscription: boolean;
   planType: string;
   clientCount: number;
-  clientLimit: number;
+  basePrice: number;
+  extraClientsCharge: number;
+  totalMonthlyPrice: number;
   canAddClients: boolean;
   subscriptionEnd?: string;
-  monthlyPrice?: number;
 }
 
 export const checkSubscription = async (): Promise<SubscriptionStatus> => {
@@ -27,11 +28,9 @@ export const checkSubscription = async (): Promise<SubscriptionStatus> => {
   }
 };
 
-export const createSubscriptionCheckout = async (planType: string): Promise<{ url: string }> => {
+export const createSubscriptionCheckout = async (): Promise<{ url: string }> => {
   try {
-    const { data, error } = await supabase.functions.invoke('create-subscription-checkout', {
-      body: { planType }
-    });
+    const { data, error } = await supabase.functions.invoke('create-subscription-checkout');
     
     if (error) {
       console.error('Error creating checkout:', error);
@@ -61,12 +60,27 @@ export const openCustomerPortal = async (): Promise<{ url: string }> => {
   }
 };
 
-export const getRecommendedPlan = (clientCount: number) => {
-  if (clientCount <= 99) {
-    return { planType: 'basico', clientLimit: 99, monthlyPrice: 30 };
-  } else if (clientCount <= 199) {
-    return { planType: 'intermediario', clientLimit: 199, monthlyPrice: 55 };
-  } else {
-    return { planType: 'avancado', clientLimit: 999999, monthlyPrice: 80 };
+export const calculateSubscriptionPrice = (clientCount: number) => {
+  const basePrice = 30.00;
+  const baseLimit = 199;
+  const extraClientPrice = 0.10;
+  
+  if (clientCount <= baseLimit) {
+    return {
+      basePrice,
+      extraClientsCharge: 0,
+      totalMonthlyPrice: basePrice,
+      extraClients: 0
+    };
   }
+  
+  const extraClients = clientCount - baseLimit;
+  const extraClientsCharge = extraClients * extraClientPrice;
+  
+  return {
+    basePrice,
+    extraClientsCharge,
+    totalMonthlyPrice: basePrice + extraClientsCharge,
+    extraClients
+  };
 };
