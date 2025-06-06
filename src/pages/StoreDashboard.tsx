@@ -1,13 +1,18 @@
 
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/useAuth';
-import { Package, Users, Clock, CheckCircle } from 'lucide-react';
+import { Package, Users, Clock, CheckCircle, CreditCard, AlertTriangle } from 'lucide-react';
+import { checkSubscription, type SubscriptionStatus } from '@/services/subscriptionService';
+import { useToast } from '@/hooks/use-toast';
 
 const StoreDashboard = () => {
   const { slug } = useParams();
   const { user, logout } = useAuth();
+  const { toast } = useToast();
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatus | null>(null);
 
   // Dados mockados para demonstração
   const stats = {
@@ -15,6 +20,19 @@ const StoreDashboard = () => {
     totalClients: 45,
     completedOrders: 123,
     todayRevenue: 'R$ 1.245,80'
+  };
+
+  useEffect(() => {
+    loadSubscriptionStatus();
+  }, []);
+
+  const loadSubscriptionStatus = async () => {
+    try {
+      const status = await checkSubscription();
+      setSubscriptionStatus(status);
+    } catch (error) {
+      console.error('Error loading subscription:', error);
+    }
   };
 
   return (
@@ -48,12 +66,37 @@ const StoreDashboard = () => {
             <a href={`/store/${slug}/clients`} className="py-4 px-2 text-gray-500 hover:text-gray-700">
               Clientes
             </a>
+            <a href={`/store/${slug}/subscription`} className="py-4 px-2 text-gray-500 hover:text-gray-700">
+              Assinatura
+            </a>
           </div>
         </div>
       </nav>
 
       {/* Dashboard Content */}
       <main className="container mx-auto px-4 py-8">
+        {/* Subscription Alert */}
+        {subscriptionStatus && !subscriptionStatus.canAddClients && (
+          <div className="mb-6">
+            <Card className="border-red-200 bg-red-50">
+              <CardContent className="pt-6">
+                <div className="flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                  <div>
+                    <p className="font-medium text-red-800">Limite de clientes atingido</p>
+                    <p className="text-sm text-red-600">
+                      Você atingiu o limite de {subscriptionStatus.clientLimit} clientes. 
+                      <a href={`/store/${slug}/subscription`} className="underline ml-1">
+                        Faça upgrade do seu plano
+                      </a> para continuar cadastrando.
+                    </p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        )}
+
         {/* Stats Cards */}
         <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
           <Card>
@@ -71,13 +114,19 @@ const StoreDashboard = () => {
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total de Clientes</CardTitle>
+              <CardTitle className="text-sm font-medium">Clientes Cadastrados</CardTitle>
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold">{stats.totalClients}</div>
+              <div className="text-2xl font-bold">
+                {subscriptionStatus ? subscriptionStatus.clientCount : stats.totalClients}
+              </div>
               <p className="text-xs text-muted-foreground">
-                Clientes cadastrados
+                {subscriptionStatus && (
+                  <>
+                    Limite: {subscriptionStatus.clientLimit === 999999 ? 'Ilimitado' : subscriptionStatus.clientLimit}
+                  </>
+                )}
               </p>
             </CardContent>
           </Card>
@@ -109,7 +158,7 @@ const StoreDashboard = () => {
           </Card>
         </div>
 
-        {/* Quick Actions */}
+        {/* Quick Actions and Subscription Info */}
         <div className="grid md:grid-cols-2 gap-6">
           <Card>
             <CardHeader>
@@ -122,8 +171,15 @@ const StoreDashboard = () => {
               <Button className="w-full" variant="outline">
                 Ver Pedidos Pendentes
               </Button>
-              <Button className="w-full" variant="outline">
-                Adicionar Novo Produto
+              <Button 
+                className="w-full" 
+                variant="outline"
+                disabled={subscriptionStatus && !subscriptionStatus.canAddClients}
+              >
+                Adicionar Novo Cliente
+                {subscriptionStatus && !subscriptionStatus.canAddClients && (
+                  <span className="ml-2 text-xs">(Limite atingido)</span>
+                )}
               </Button>
               <Button className="w-full" variant="outline">
                 Visualizar Relatório de Vendas
@@ -131,34 +187,46 @@ const StoreDashboard = () => {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader>
-              <CardTitle>Resumo de Hoje</CardTitle>
-              <CardDescription>
-                Atividades do dia atual
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex justify-between">
-                  <span>Novos pedidos:</span>
-                  <span className="font-semibold">12</span>
+          {subscriptionStatus && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-5 w-5" />
+                  <CardTitle>Sua Assinatura</CardTitle>
                 </div>
-                <div className="flex justify-between">
-                  <span>Pedidos entregues:</span>
-                  <span className="font-semibold">8</span>
+                <CardDescription>
+                  Informações do seu plano atual
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Plano:</span>
+                    <span className="font-semibold capitalize">
+                      {subscriptionStatus.planType === 'trial' ? 'Período de Teste' : subscriptionStatus.planType}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Clientes:</span>
+                    <span className="font-semibold">
+                      {subscriptionStatus.clientCount}/{subscriptionStatus.clientLimit === 999999 ? '∞' : subscriptionStatus.clientLimit}
+                    </span>
+                  </div>
+                  {subscriptionStatus.monthlyPrice && (
+                    <div className="flex justify-between">
+                      <span>Mensalidade:</span>
+                      <span className="font-semibold">R$ {subscriptionStatus.monthlyPrice}</span>
+                    </div>
+                  )}
                 </div>
-                <div className="flex justify-between">
-                  <span>Novos clientes:</span>
-                  <span className="font-semibold">3</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxa de conversão:</span>
-                  <span className="font-semibold">75%</span>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
+                <Button asChild className="w-full">
+                  <a href={`/store/${slug}/subscription`}>
+                    Gerenciar Assinatura
+                  </a>
+                </Button>
+              </CardContent>
+            </Card>
+          )}
         </div>
       </main>
     </div>

@@ -11,6 +11,7 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import StoreLogin from "./pages/StoreLogin";
 import StoreDashboard from "./pages/StoreDashboard";
+import StoreSubscription from "./pages/StoreSubscription";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -85,6 +86,14 @@ const AppRoutes = () => {
         element={
           <ProtectedStoreRoute>
             <StoreDashboard />
+          </ProtectedStoreRoute>
+        } 
+      />
+      <Route 
+        path="/store/:slug/subscription" 
+        element={
+          <ProtectedStoreRoute>
+            <StoreSubscription />
           </ProtectedStoreRoute>
         } 
       />

@@ -262,6 +262,7 @@ export type Database = {
         Row: {
           address: string | null
           auth_id: string | null
+          client_count: number | null
           cnpj: string
           created_at: string | null
           id: string
@@ -270,12 +271,15 @@ export type Database = {
           primary_color: string | null
           responsible_name: string
           slug: string
+          subscription_id: string | null
+          subscription_required: boolean | null
           subtitle: string | null
           updated_at: string | null
         }
         Insert: {
           address?: string | null
           auth_id?: string | null
+          client_count?: number | null
           cnpj: string
           created_at?: string | null
           id?: string
@@ -284,12 +288,15 @@ export type Database = {
           primary_color?: string | null
           responsible_name: string
           slug: string
+          subscription_id?: string | null
+          subscription_required?: boolean | null
           subtitle?: string | null
           updated_at?: string | null
         }
         Update: {
           address?: string | null
           auth_id?: string | null
+          client_count?: number | null
           cnpj?: string
           created_at?: string | null
           id?: string
@@ -298,6 +305,8 @@ export type Database = {
           primary_color?: string | null
           responsible_name?: string
           slug?: string
+          subscription_id?: string | null
+          subscription_required?: boolean | null
           subtitle?: string | null
           updated_at?: string | null
         }
@@ -309,6 +318,66 @@ export type Database = {
             referencedRelation: "auth_users"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "stores_subscription_id_fkey"
+            columns: ["subscription_id"]
+            isOneToOne: false
+            referencedRelation: "subscriptions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subscriptions: {
+        Row: {
+          client_limit: number
+          created_at: string
+          current_period_end: string | null
+          current_period_start: string | null
+          id: string
+          monthly_price: number
+          plan_type: string
+          status: string
+          store_id: string | null
+          stripe_customer_id: string | null
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          client_limit: number
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          monthly_price: number
+          plan_type: string
+          status?: string
+          store_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          client_limit?: number
+          created_at?: string
+          current_period_end?: string | null
+          current_period_start?: string | null
+          id?: string
+          monthly_price?: number
+          plan_type?: string
+          status?: string
+          store_id?: string | null
+          stripe_customer_id?: string | null
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subscriptions_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
         ]
       }
     }
@@ -316,6 +385,18 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      can_add_client: {
+        Args: { store_uuid: string }
+        Returns: boolean
+      }
+      get_recommended_plan: {
+        Args: { client_count: number }
+        Returns: {
+          plan_type: string
+          client_limit: number
+          monthly_price: number
+        }[]
+      }
       hash_password: {
         Args: { password: string }
         Returns: string
