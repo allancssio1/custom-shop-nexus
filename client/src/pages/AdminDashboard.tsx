@@ -43,7 +43,7 @@ const AdminDashboard = () => {
 
       setStores(storesData || []);
       setTotalStores(storesData?.length || 0);
-      setPaidStores(storesData?.filter(store => store.paymentEnabled).length || 0);
+      setPaidStores(storesData?.filter((store: Store) => store.paymentEnabled).length || 0);
 
     } catch (error) {
       console.error('Dashboard error:', error);
@@ -155,7 +155,7 @@ const AdminDashboard = () => {
                   <TableRow key={store.id}>
                     <TableCell className="font-medium">{store.name}</TableCell>
                     <TableCell>{store.cnpj}</TableCell>
-                    <TableCell>{store.responsible_name}</TableCell>
+                    <TableCell>{store.responsibleName}</TableCell>
                     <TableCell>
                       <code className="bg-gray-100 px-2 py-1 rounded text-sm">
                         {store.slug}
@@ -163,14 +163,14 @@ const AdminDashboard = () => {
                     </TableCell>
                     <TableCell>
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                        store.payment_enabled 
+                        store.paymentEnabled 
                           ? 'bg-green-100 text-green-800' 
                           : 'bg-red-100 text-red-800'
                       }`}>
-                        {store.payment_enabled ? 'Pago' : 'Pendente'}
+                        {store.paymentEnabled ? 'Pago' : 'Pendente'}
                       </span>
                     </TableCell>
-                    <TableCell>{formatDate(store.created_at)}</TableCell>
+                    <TableCell>{formatDate(store.createdAt)}</TableCell>
                   </TableRow>
                 ))}
               </TableBody>
